@@ -1,14 +1,15 @@
 import random
+import numpy as np
 from numpy.random import choice
 
 # Logs!
 DEBUG = True
 
-# Minimum score ratio to be considered a team carry
-CARRY_THRESH_RATIO = 1/4
-
 # Weight towards picking worst player versus the bot frag player
 PICK_WORST_PLAYER_WEIGHT = 1/3
+
+# How potent of an outlier to discover during carry picking
+CARRY_OUTLIER_RATIO = 1.5
 
 def debug(msg):
     if DEBUG == True:
@@ -24,21 +25,35 @@ class Player:
         self.bot_frag_cnt = bot_frag_cnt
 
 hardcoded_players = [
-    Player("Tyler N", 52, 1),
-    Player("Tyler C", 41, 0),
-    Player("Strafe", 40, 8),
-    Player("Eric", 46, 1),
-    Player("Ethan", 59, 0),
+    Player("Tyler N",   24,     1),
+    Player("Tyler C",   21,     0),
+    Player("Strafe",    14,     8),
+    Player("Eric",      31,     1),
+    Player("Ethan",     46,     0),
 ]
 
-def find_carries(players):
-    cumulative_score = sum([p.score for p in players])
-    min_carry_score = cumulative_score * CARRY_THRESH_RATIO
-    
-    debug(f'cumulative score: {cumulative_score}')
-    debug(f'min carry score ({CARRY_THRESH_RATIO * 100}th pctl.): {min_carry_score}')
+def make_outlier(players):
+    scores = [p.score for p in players]
+    third_q = np.quantile(scores, 3/4)
+    outlier_score = third_q * CARRY_OUTLIER_RATIO
+    debug(f'simulated carry score: {outlier_score}')
+    return outlier_score
 
-    carries = [p for p in players if p.score > min_carry_score]
+def find_carries(players):
+    outlier_score = make_outlier(players)
+
+    simulated_player = Player("Simulated", outlier_score)
+    players.append(simulated_player)
+
+    player_scores = [p.score for p in players]
+
+    avg_simulated_score = np.mean(player_scores)
+    std_simulated_score = np.std(player_scores)
+    min_carry_score = avg_simulated_score + std_simulated_score
+
+    debug(f'min carry score: {min_carry_score}')
+
+    carries = [p for p in players if p.score >= min_carry_score]
     debug(f'carries: {[p.name for p in carries]}')
 
     for p in carries:
@@ -94,11 +109,7 @@ def pick_boot_player():
         players.remove(carry)
     
     worst = pick_worst(players)
-    print(worst.name)
-
     bot_frag = pick_inv_bot_frag(players)
-    print(bot_frag.name)
-
     boot_player = pick_between_two(worst, bot_frag)
 
     return boot_player
@@ -112,19 +123,24 @@ def test_run(iters = 1000):
             l[name] = 0
         l[name] += 1
     
-    distri = {}
-    total = 0
+    dist = {}
+
+    total = sum(l.values())
     for key in l.keys():
-        total += l[key]
-    for key in l.keys():
-        distri[key] = l[key]/total * 100
+        dist[key] = l[key]/total * 100
     
-    print(l)
-    print(distri)
+    print()
+    print('===== Kick Probability =====')
+    for p in sorted(dist):
+        print(f'{p}\t\t{round(dist[p])}%')
 
 def main():
     boot_player = pick_boot_player()
-    print(f'booted player: {boot_player.name}')
+    print()
+    msg = f'    We will miss you {boot_player.name}!    '
+    print('=' * (len(msg)))
+    print(msg)
+    print('=' * (len(msg)))
 
-#main()
-test_run(1000)
+main()
+#test_run(5000)
