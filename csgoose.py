@@ -1,9 +1,13 @@
 import random
 import numpy as np
 from numpy.random import choice
+import sqlite3
 
 # Logs!
-DEBUG = True
+DEBUG = False
+
+# SQLite database location
+SQLITE_DB_PATH = 'players.db'
 
 # Weight towards picking worst player versus the bot frag player
 PICK_WORST_PLAYER_WEIGHT = 1/3
@@ -24,13 +28,29 @@ class Player:
         self.score = score
         self.bot_frag_cnt = bot_frag_cnt
 
-hardcoded_players = [
+'''hardcoded_players = [
     Player("Tyler N",   24,     1),
     Player("Tyler C",   21,     0),
     Player("Strafe",    14,     8),
     Player("Eric",      31,     1),
     Player("Ethan",     46,     0),
-]
+]'''
+
+def players_from_sql():
+    con = sqlite3.connect(SQLITE_DB_PATH)
+    player_rows = con.execute('SELECT Name, Score, BotFragCnt FROM Players')
+    
+    players = []
+    for player in player_rows.fetchall():
+        players.append(
+            Player(
+                player[0],
+                player[1],
+                player[2],
+            )
+        )
+    
+    return players
 
 def make_outlier(players):
     scores = [p.score for p in players]
@@ -101,8 +121,7 @@ def pick_between_two(worst, bot_frag):
 
     return boot_player
 
-def pick_boot_player():
-    players = hardcoded_players.copy()
+def pick_boot_player(players):
     carries = find_carries(players)
 
     for carry in carries:
@@ -115,9 +134,10 @@ def pick_boot_player():
     return boot_player
 
 def test_run(iters = 1000):
+    players = players_from_sql()
     l = {}
     for _ in range(0, iters):
-        boot_player = pick_boot_player()
+        boot_player = pick_boot_player(players)
         name = boot_player.name
         if name not in l.keys():
             l[name] = 0
@@ -135,12 +155,13 @@ def test_run(iters = 1000):
         print(f'{p}\t\t{round(dist[p])}%')
 
 def main():
-    boot_player = pick_boot_player()
+    players = players_from_sql()
+    boot_player = pick_boot_player(players)
     print()
     msg = f'    We will miss you {boot_player.name}!    '
     print('=' * (len(msg)))
     print(msg)
     print('=' * (len(msg)))
 
+test_run(5000)
 main()
-#test_run(5000)
